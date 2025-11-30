@@ -25,7 +25,7 @@ SECRET_KEY = "django-insecure-#jd2p$f&a806z#gg1d@)5mb!uas^3$84@5!@6k7w9r&-k(r^4a
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["wavechat-backend-j9xp.onrender.com"]
 
 
 # Application definition
