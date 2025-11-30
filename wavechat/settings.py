@@ -84,7 +84,7 @@ TEMPLATES = [
     },
 ]
 
-ASGI_APPLICATION = "wavechat.asgi.application"
+ASGI_APPLICATION = "yourprojectname.asgi.application"
 
 CHANNEL_LAYERS = {
     "default": {
