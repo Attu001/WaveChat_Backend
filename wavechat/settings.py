@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
      "corsheaders",
      'rest_framework_simplejwt',
+     "channels",
+     "chat",
 ]
 
 MIDDLEWARE = [
@@ -82,7 +84,13 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "wavechat.wsgi.application"
+ASGI_APPLICATION = "wavechat.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}
 
 
 # Database
