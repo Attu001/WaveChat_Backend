@@ -25,7 +25,9 @@ SECRET_KEY = "django-insecure-#jd2p$f&a806z#gg1d@)5mb!uas^3$84@5!@6k7w9r&-k(r^4a
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["wavechat-backend-j9xp.onrender.com"]
+ALLOWED_HOSTS = ["wavechat-backend-j9xp.onrender.com"
+                 ,  'wavechat-backend-renderer.onrender.com'
+                 ]
 
 
 # Application definition
@@ -97,11 +99,16 @@ CHANNEL_LAYERS = {
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'wavechat_db',
+        'USER': 'postgres',
+        'PASSWORD': 'Atish@9644',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
+
 
 
 # Password validation
