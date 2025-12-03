@@ -21,6 +21,6 @@ from auth import views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("check/",  views.sample ),
+    path("",  views.sample ),
     path("api/",include('auth.urls'))
 ]
