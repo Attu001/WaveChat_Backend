@@ -26,7 +26,10 @@ SECRET_KEY = "django-insecure-#jd2p$f&a806z#gg1d@)5mb!uas^3$84@5!@6k7w9r&-k(r^4a
 DEBUG = True
 
 ALLOWED_HOSTS = ["wavechat-backend-j9xp.onrender.com"
-                 ,  'wavechat-backend-renderer.onrender.com'
+                 ,  'wavechat-backend-renderer.onrender.com',
+                 'localhost',
+                 'http://127.0.0.1:8000/',
+                 
                  ]
 
 
@@ -43,6 +46,8 @@ INSTALLED_APPS = [
      'rest_framework_simplejwt',
      "channels",
      "chat",
+      'authorization',
+      
 ]
 
 MIDDLEWARE = [
@@ -59,6 +64,11 @@ MIDDLEWARE = [
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_HEADERS = ["*"]
+AUTH_USER_MODEL = "authorization.User"
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 
 
@@ -86,7 +96,7 @@ TEMPLATES = [
     },
 ]
 
-ASGI_APPLICATION = "yourprojectname.asgi.application"
+ASGI_APPLICATION = "wavechat.asgi.application"
 
 CHANNEL_LAYERS = {
     "default": {
