@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -25,12 +26,12 @@ SECRET_KEY = "django-insecure-#jd2p$f&a806z#gg1d@)5mb!uas^3$84@5!@6k7w9r&-k(r^4a
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["wavechat-backend-j9xp.onrender.com"
-                 ,  'wavechat-backend-renderer.onrender.com',
-                 'localhost',
-                 'http://127.0.0.1:8000/',
-                 
-                 ]
+ALLOWED_HOSTS = [
+    "wavechat-backend-j9xp.onrender.com",
+    "wavechat-backend-renderer.onrender.com",
+    "localhost",
+    "http://127.0.0.1:8000/",
+]
 
 
 # Application definition
@@ -42,12 +43,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-     "corsheaders",
-     'rest_framework_simplejwt',
-     "channels",
-     "chat",
-      'authorization',
-      
+    "corsheaders",
+    "rest_framework_simplejwt",
+    "channels",
+    "chat",
+    "authorization",
 ]
 
 MIDDLEWARE = [
@@ -58,7 +58,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-      "corsheaders.middleware.CorsMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
 ]
 
@@ -67,14 +67,13 @@ CORS_ALLOW_HEADERS = ["*"]
 AUTH_USER_MODEL = "authorization.User"
 
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
+    "django.contrib.auth.backends.ModelBackend",
 ]
 
 
-
 REST_FRAMEWORK = {
-     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     )
 }
 
@@ -98,27 +97,47 @@ TEMPLATES = [
 
 ASGI_APPLICATION = "wavechat.asgi.application"
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer"
-    }
-}
+CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
 
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": "wavechat_db",
+#         "USER": "postgres",
+#         "PASSWORD": "Atish@9644",
+#         "HOST": "localhost",
+#         "PORT": "5432",
+#     }
+# }
+
+import dj_database_url
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'wavechat_db',
-        'USER': 'postgres',
-        'PASSWORD': 'Atish@9644',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
+    'default': dj_database_url.parse(
+        "postgresql://wavechat_db_user:eM0gDyqFnwMHwdntocmLdxRszcqPeuIV@dpg-d50ftq75r7bs739djglg-a.oregon-postgres.render.com/wavechat_db"
+    )
 }
 
+
+
+
+
+
+
+
+# email settings
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "atishchavan066@gmail.com"
+EMAIL_HOST_PASSWORD = "kitm pvvr bvrn kdsj"  # NOT your Gmail password
+
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
 # Password validation
