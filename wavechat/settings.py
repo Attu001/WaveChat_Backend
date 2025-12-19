@@ -30,27 +30,32 @@ ALLOWED_HOSTS = [
     "wavechat-backend-j9xp.onrender.com",
     "wavechat-backend-renderer.onrender.com",
     "localhost",
-    "http://127.0.0.1:8000/",
+    "127.0.0.1",
 ]
 
 
-# Application definition
 
+# Application definition
 INSTALLED_APPS = [
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
     "corsheaders",
+    "rest_framework",
     "rest_framework_simplejwt",
     "channels",
     "chat",
     "authorization",
 ]
 
+
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -58,9 +63,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.common.CommonMiddleware",
 ]
+
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_HEADERS = ["*"]
@@ -114,14 +118,28 @@ CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}
 #     }
 # }
 
+
+# DATABASES = {
+#     "default": dj_database_url.config(
+#         default="postgresql://wavechat_db_user:eM0gDyqFnwMHwdntocmLdxRszcqPeuIV@dpg-d50ftq75r7bs739djglg-a.oregon-postgres.render.com/wavechat_db",
+#         conn_max_age=600,
+#     )
+# }
+
+import os
+
+from decouple import config, Csv
 import dj_database_url
 
 DATABASES = {
-    'default': dj_database_url.parse(
-        "postgresql://wavechat_db_user:eM0gDyqFnwMHwdntocmLdxRszcqPeuIV@dpg-d50ftq75r7bs739djglg-a.oregon-postgres.render.com/wavechat_db"
+    "default": dj_database_url.config(
+        default=config("DATABASE_URL"),
+        conn_max_age=600,
+        ssl_require=True,
     )
 }
 
+DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
 
 
 

@@ -6,7 +6,9 @@ from authorization.models import User
 from django.core.mail import send_mail
 from authorization.utils import generate_token_verification
 from django.db import transaction
+from django.shortcuts import get_object_or_404
 import secrets
+from .serializer import ProfileSerializer
 
 
 @api_view(["POST"])
@@ -97,4 +99,30 @@ def verify_email(request):
         return Response({"message": "Email verified successfully"})
     except User.DoesNotExist:
         return Response({"error": "Invalid token"}, status=400)
+    
+
+@api_view(["GET"])
+def get_all_users(request):
+    users=User.objects.all().values(
+        "id",
+        "name",
+        "email"
+    )
+    
+    return Response(users)
+
+
+@api_view(["POST"])
+def get_profile(request):
+    id = request.data.get("id")
+
+    user = User.objects.filter(id=id).first()
+    if not user:
+        return Response({"error": "User not found"}, status=404)
+
+    serializer = ProfileSerializer(user)
+    return Response(serializer.data, status=200)
+    
+    
+    
 
