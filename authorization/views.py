@@ -22,39 +22,35 @@ def register(request):
 
     if User.objects.filter(email=email).exists():
         return Response({"error": "Email already registered"}, status=400)
+    else:
+        try:
+            with transaction.atomic():
+                token = secrets.token_urlsafe(32)
+                user = User.objects.create_user(
+                    username=email,
+                    email=email,
+                    password=password,
+                    name=name
+                )            
+                user.token = token
+                user.save()
+                link = f"http://localhost:5173/verify?token={token}"
+                send_mail(
+                    subject="Verify your Wavechat account",
+                    message=f"Please verify your account:\n{link}",
+                    from_email="atishchavan066@gmail.com",
+                    recipient_list=[email],
+                    fail_silently=False,
+                )
 
-    try:
-        with transaction.atomic():
-            token = secrets.token_urlsafe(32)
-
-            user = User.objects.create_user(
-                username=email,
-                email=email,
-                password=password,
-                name=name
+            return Response(
+                {"message": "User registered. Verification email sent."},
+                status=201
             )
-            
-            user.token = token
-            user.save()
 
-            link = f"http://localhost:3000/verify?token={token}"
-
-            send_mail(
-                subject="Verify your Wavechat account",
-                message=f"Please verify your account:\n{link}",
-                from_email="atishchavan066@gmail.com",
-                recipient_list=[email],
-                fail_silently=False,
-            )
-
-        return Response(
-            {"message": "User registered. Verification email sent."},
-            status=201
-        )
-
-    except Exception as e:
-        print("Registration Error:", e)
-        return Response({"error": "Registration failed"}, status=500)
+        except Exception as e:
+            print("Registration Error:", e)
+            return Response({"error": "Registration failed"}, status=500)
 
     
 
@@ -73,6 +69,9 @@ def login_user(request):
     if user is None:
         print(user)
         return Response({"error": "Invalid email or password"}, status=400)
+    
+    if not user.is_verified:
+        return Response("Please verify Your email first!",status=403)
 
     refresh = RefreshToken.for_user(user)
 
