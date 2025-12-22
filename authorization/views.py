@@ -1,4 +1,4 @@
-from rest_framework.response import Response
+from rest_framework.response import Response,status
 from rest_framework.decorators import api_view
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -9,6 +9,21 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 import secrets
 from .serializer import ProfileSerializer
+from threading import Thread
+
+
+
+from threading import Thread
+
+def send_verification_email(email, link):
+    send_mail(
+        subject="Verify your Wavechat account",
+        message=f"Please verify your account:\n{link}",
+        from_email="atishchavan066@gmail.com",
+        recipient_list=[email],
+        fail_silently=True,  # IMPORTANT
+    )
+
 
 
 @api_view(["POST"])
@@ -22,35 +37,35 @@ def register(request):
 
     if User.objects.filter(email=email).exists():
         return Response({"error": "Email already registered"}, status=400)
-    else:
-        try:
-            with transaction.atomic():
-                token = secrets.token_urlsafe(32)
-                user = User.objects.create_user(
-                    username=email,
-                    email=email,
-                    password=password,
-                    name=name
-                )            
-                user.token = token
-                user.save()
-                link = f"http://localhost:5173/verify?token={token}"
-                send_mail(
-                    subject="Verify your Wavechat account",
-                    message=f"Please verify your account:\n{link}",
-                    from_email="atishchavan066@gmail.com",
-                    recipient_list=[email],
-                    fail_silently=False,
-                )
 
-            return Response(
-                {"message": "User registered. Verification email sent."},
-                status=201
+    try:
+        with transaction.atomic():
+            token = secrets.token_urlsafe(32)
+            user = User.objects.create_user(
+                username=email,
+                email=email,
+                password=password,
+                name=name
             )
+            user.token = token
+            user.save()
 
-        except Exception as e:
-            print("Registration Error:", e)
-            return Response({"error": "Registration failed"}, status=500)
+            link = f"http://localhost:5173/verify?token={token}"
+
+            Thread(
+                target=send_verification_email,
+                args=(email, link),
+                daemon=True
+            ).start()
+
+        return Response(
+            {"message": "User registered. Verification email sent."},
+            status=201
+        )
+
+    except Exception as e:
+        print("Registration Error:", e)
+        return Response({"error": "Registration failed"}, status=500)
 
     
 
@@ -71,7 +86,7 @@ def login_user(request):
         return Response({"error": "Invalid email or password"}, status=400)
     
     if not user.is_verified:
-        return Response("Please verify Your email first!",status=403)
+        return Response({"error":"Please verify Your email first!"},status=403)
 
     refresh = RefreshToken.for_user(user)
 
