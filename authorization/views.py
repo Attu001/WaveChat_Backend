@@ -18,39 +18,54 @@ def register(request):
     password = request.data.get("password")
 
     if not name or not email or not password:
-        return Response({"error": "All fields required"}, status=400)
+        return Response(
+            {"error": "All fields required"},
+            status=400
+        )
 
     if User.objects.filter(email=email).exists():
-        return Response({"error": "Email already registered"}, status=400)
-    else:
-        try:
-            with transaction.atomic():
-                token = secrets.token_urlsafe(32)
-                user = User.objects.create_user(
-                    username=email,
-                    email=email,
-                    password=password,
-                    name=name
-                )            
-                user.token = token
-                user.save()
-                link = f"http://localhost:5173/verify?token={token}"
-                send_mail(
-                    subject="Verify your Wavechat account",
-                    message=f"Please verify your account:\n{link}",
-                    from_email="atishchavan066@gmail.com",
-                    recipient_list=[email],
-                    fail_silently=False,
-                )
+        return Response(
+            {"error": "Email already registered"},
+            status=400
+        )
 
-            return Response(
-                {"message": "User registered. Verification email sent."},
-                status=201
+    try:
+        # ---- DB work first (fast & safe) ----
+        with transaction.atomic():
+            token = secrets.token_urlsafe(32)
+
+            user = User.objects.create_user(
+                username=email,
+                email=email,
+                password=password,
+                name=name
             )
+            user.token = token
+            user.save()
 
-        except Exception as e:
-            print("Registration Error:", e)
-            return Response({"error": "Registration failed"}, status=500)
+        # ---- Email AFTER transaction (non-blocking) ----
+        frontend_url = settings.FRONTEND_URL
+        verify_link = f"{frontend_url}/verify?token={token}"
+
+        send_mail(
+            subject="Verify your WaveChat account",
+            message=f"Please verify your account:\n{verify_link}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=True,   # 🔑 prevents request hang
+        )
+
+        return Response(
+            {"message": "User registered. Verification email sent."},
+            status=201
+        )
+
+    except Exception as e:
+        print("Registration Error:", e)
+        return Response(
+            {"error": "Registration failed"},
+            status=500
+        )
 
     
 
