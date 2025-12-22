@@ -1,45 +1,49 @@
-import json
 from channels.generic.websocket import AsyncWebsocketConsumer
+import json
 
-class ChatConsumer(AsyncWebsocketConsumer):
+class PrivateChatConsumer(AsyncWebsocketConsumer):
+
     async def connect(self):
-        # Get room_id from the URL
-        self.room_id = self.scope["url_route"]["kwargs"]["room_id"]
+        user1 = self.scope["url_route"]["kwargs"]["user1"]
+        user2 = self.scope["url_route"]["kwargs"]["user2"]
 
-        # Create group name for room
-        self.room_group_name = f"chat_{self.room_id}"
+        # normalize group name (IMPORTANT)
+        users = sorted([user1, user2])
+        self.room_group_name = f"private_{users[0]}_{users[1]}"
 
-        # Add this connection to the room group
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
 
-        # Accept the WebSocket connection
         await self.accept()
 
+        await self.send(text_data=json.dumps({
+            "system": "Connected to private chat"
+        }))
+
     async def disconnect(self, close_code):
-        # Remove connection from the room group
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
         )
 
     async def receive(self, text_data):
-        # Convert JSON string to Python dict
         data = json.loads(text_data)
+        message = data["message"]
+        sender = data.get("sender")
 
-        # Broadcast message to entire room group
         await self.channel_layer.group_send(
             self.room_group_name,
             {
                 "type": "chat_message",
-                "message": data["message"],
-                "sender": data["sender"],
-                "receiver": data["receiver"],
+                "message": message,
+                "sender": sender,
             }
         )
 
     async def chat_message(self, event):
-        # Send event back to WebSocket frontend
-        await self.send(text_data=json.dumps(event))
+        await self.send(text_data=json.dumps({
+            "message": event["message"],
+            "sender": event["sender"],
+        }))
