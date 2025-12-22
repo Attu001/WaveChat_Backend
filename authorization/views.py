@@ -1,4 +1,4 @@
-from rest_framework.response import Response,status
+from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404
 import secrets
 from .serializer import ProfileSerializer
 from threading import Thread
+from rest_framework import status
 
 
 
