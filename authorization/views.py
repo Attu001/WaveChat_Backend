@@ -8,22 +8,23 @@ from authorization.utils import generate_token_verification
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 import secrets
+import threading
 from .serializer import ProfileSerializer
 from threading import Thread
 from rest_framework import status
 
 
 
-from threading import Thread
 
 def send_verification_email(email, link):
     send_mail(
-        subject="Verify your Wavechat account",
+        subject="Verify your WaveChat account",
         message=f"Please verify your account:\n{link}",
         from_email="atishchavan066@gmail.com",
         recipient_list=[email],
-        fail_silently=True,  # IMPORTANT
+        fail_silently=False,
     )
+
 
 
 
@@ -33,20 +34,16 @@ def register(request):
     email = request.data.get("email")
     password = request.data.get("password")
 
+    # 1️⃣ Validate input
     if not name or not email or not password:
-        return Response(
-            {"error": "All fields required"},
-            status=400
-        )
+        return Response({"error": "All fields required"}, status=400)
 
+    # 2️⃣ STOP immediately if email exists
     if User.objects.filter(email=email).exists():
-        return Response(
-            {"error": "Email already registered"},
-            status=400
-        )
+        return Response({"error": "Email already registered"}, status=400)
 
     try:
-        # ---- DB work first (fast & safe) ----
+        # 3️⃣ Create user safely
         with transaction.atomic():
             token = secrets.token_urlsafe(32)
 
@@ -59,17 +56,14 @@ def register(request):
             user.token = token
             user.save()
 
-        # ---- Email AFTER transaction (non-blocking) ----
-        frontend_url = "https://wavechat-snowy.vercel.app/"
+        # 4️⃣ Send email ONLY after success
+        frontend_url = "https://wavechat-snowy.vercel.app"
         verify_link = f"{frontend_url}/verify?token={token}"
 
-        send_mail(
-            subject="Verify your WaveChat account",
-            message=f"Please verify your account:\n{verify_link}",
-            from_email="atishchavan066@gmail.com",
-            recipient_list=[email],
-            fail_silently=True,  
-        )
+        threading.Thread(
+            target=send_verification_email,
+            args=(email, verify_link),
+        ).start()
 
         return Response(
             {"message": "User registered. Verification email sent."},
@@ -78,10 +72,7 @@ def register(request):
 
     except Exception as e:
         print("Registration Error:", e)
-        return Response(
-            {"error": "Registration failed"},
-            status=500
-        )
+        return Response({"error": "Registration failed"}, status=500)
 
     
 
