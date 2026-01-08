@@ -14,25 +14,11 @@ from threading import Thread
 from rest_framework import status
 from django.conf import settings
 import os
-import resend
 
 
 
 
-resend.api_key = os.getenv("RESEND_API_KEY")
 
-def send_verification_email(email, token):
-    verify_url = f"https://wavechat-snowy.vercel.app/verify-email/{token}"
-
-    resend.Emails.send({
-        "from": os.getenv("FROM_EMAIL"),
-        "to": email,
-        "subject": "Verify your email",
-        "html": f""" 
-            <p>Click the link below to verify your email:</p>
-            <a href="{verify_url}">Verify Email</a>
-        """
-    })
 
 
 

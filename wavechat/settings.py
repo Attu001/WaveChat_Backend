@@ -146,7 +146,6 @@ DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
 
 
 
-
 # email settings
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"
