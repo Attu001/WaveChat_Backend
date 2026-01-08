@@ -12,18 +12,27 @@ import threading
 from .serializer import ProfileSerializer
 from threading import Thread
 from rest_framework import status
+from django.conf import settings
+import os
+import resend
 
 
 
 
-def send_verification_email(email, link):
-    send_mail(
-        subject="Verify your WaveChat account",
-        message=f"Please verify your account:\n{link}",
-        from_email="atishchavan066@gmail.com",
-        recipient_list=[email],
-        fail_silently=False,
-    )
+resend.api_key = os.getenv("RESEND_API_KEY")
+
+def send_verification_email(email, token):
+    verify_url = f"https://wavechat-snowy.vercel.app/verify-email/{token}"
+
+    resend.Emails.send({
+        "from": os.getenv("FROM_EMAIL"),
+        "to": email,
+        "subject": "Verify your email",
+        "html": f""" 
+            <p>Click the link below to verify your email:</p>
+            <a href="{verify_url}">Verify Email</a>
+        """
+    })
 
 
 
@@ -56,17 +65,15 @@ def register(request):
             user.token = token
             user.save()
 
-        # 4️⃣ Send email ONLY after success
-        frontend_url = "https://wavechat-snowy.vercel.app"
-        verify_link = f"{frontend_url}/verify?token={token}"
+        # # 4️⃣ Send email ONLY after success
+        # frontend_url = "https://wavechat-snowy.vercel.app"
+        # verify_link = f"{frontend_url}/verify?token={token}"
 
-        threading.Thread(
-            target=send_verification_email,
-            args=(email, verify_link),
-        ).start()
+        # send_verification_email(user.email, token)
+
 
         return Response(
-            {"message": "User registered. Verification email sent."},
+            {"message": "User registered."},
             status=201
         )
 
@@ -92,8 +99,8 @@ def login_user(request):
         print(user)
         return Response({"error": "Invalid email or password"}, status=400)
     
-    if not user.is_verified:
-        return Response({"error":"Please verify Your email first!"},status=403)
+    # if not user.is_verified:
+    #     return Response({"error":"Please verify Your email first!"},status=403)
 
     refresh = RefreshToken.for_user(user)
 
