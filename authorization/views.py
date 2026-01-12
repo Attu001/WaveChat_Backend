@@ -1,5 +1,4 @@
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from authorization.models import User
@@ -14,6 +13,8 @@ from threading import Thread
 from rest_framework import status
 from django.conf import settings
 import os
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 
 
 
@@ -126,16 +127,26 @@ def get_all_users(request):
     return Response(users)
 
 
-@api_view(["POST"])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def get_profile(request):
-    id = request.data.get("id")
-
-    user = User.objects.filter(id=id).first()
-    if not user:
-        return Response({"error": "User not found"}, status=404)
-
-    serializer = ProfileSerializer(user)
+    serializer = ProfileSerializer(request.user)
     return Response(serializer.data, status=200)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_user_profile(request,user_id):
+    try:
+        user =User.objects.get(id-user_id)
+        serializer=ProfileSerializer(user)
+        return Response(serializer.data)
+    except User.DoesNotExist:
+        return Response({"error":"User not Found"},status=404)
+
+    
+    
+
     
     
     
