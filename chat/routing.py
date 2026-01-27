@@ -7,7 +7,7 @@ websocket_urlpatterns = [
         PrivateChatConsumer.as_asgi(),
     ),
     re_path(
-        r'ws/notifications/(?P<user_id>\d+)/$',
+        r'^ws/notifications/(?P<user_id>\d+)/$',
         NotificationConsumer.as_asgi()
     ),
 
