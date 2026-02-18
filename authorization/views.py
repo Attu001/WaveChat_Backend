@@ -117,14 +117,15 @@ def verify_email(request):
     
 
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def get_all_users(request):
-    users=User.objects.all().values(
+    users = User.objects.exclude(id=request.user.id).values(
         "id",
         "name",
         "email"
     )
-    
     return Response(users)
+
 
 
 @api_view(["GET"])
