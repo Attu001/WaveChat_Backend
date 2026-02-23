@@ -11,6 +11,8 @@ from rest_framework.permissions import IsAuthenticated
 from .models import ChatRequest,Chat
 from .serializers import ChatRequestSerializer
 from django.db.models import Q
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 @api_view(["POST"])
@@ -26,9 +28,19 @@ def send_chat_request(request, user_id):
         receiver=receiver,
     )
 
+
     if not created:
         return Response({"error": "Request already exists"}, status=400)
-
+    
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f"notify_{receiver.id}",
+        {
+            "type": "send_notification",
+            "message": f"{request.user.name} has sent you a chat request.",
+            "sender_id": request.user.id,
+        }
+    )
     return Response({"message": "Chat request sent"})
 
 
@@ -81,6 +93,15 @@ def reject_request(request, request_id):
     )
     chat_request.status = ChatRequest.REJECTED
     chat_request.save()
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f"notify_{chat_request.sender.id}",
+        {
+            "type": "send_notification",
+            "message": f"{request.user.name} has rejected your chat request.",
+            "sender_id": request.user.id,
+        }
+    )
     return Response({"message": "Request rejected"})
 
 
@@ -94,12 +115,19 @@ def users_with_status(request):
     # all other users
     users = User.objects.exclude(id=current_user.id).values("id", "name", "email")
 
-    # accepted chats (friends)
-    accepted_user_ids = set(
-        Chat.objects.filter(is_group=False, participants=current_user)
-        .values_list("participants", flat=True)
-    )
-    accepted_user_ids.discard(current_user.id)
+   # accepted chats (friends)
+    accepted_user_ids = set()
+
+    private_chats = Chat.objects.filter(
+                is_group=False,
+                participants=current_user
+            ).prefetch_related("participants")
+
+    for chat in private_chats:
+        other_user = chat.participants.exclude(id=current_user.id).first()
+        if other_user:
+                accepted_user_ids.add(other_user.id)
+
 
     # sent pending requests
     sent_requests = set(
@@ -179,7 +207,16 @@ def accept_request(request, request_id):
             is_group=False   # optional if you added OneToOneField
         )
         chat.participants.add(chat_request.sender, chat_request.receiver)
-
+    
+    channel_layer =get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f"notify_{chat_request.sender.id}",
+        {
+            "type": "send_notification",
+            "message": f"{request.user.name} has accepted your chat request.",
+            "sender_id": request.user.id,
+        }
+    )
     return Response({
         "message": "Request accepted",
         "chat_id": chat.id
