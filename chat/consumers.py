@@ -91,6 +91,8 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
+    
+
     async def send_notification(self, event):
         await self.send(text_data=json.dumps({
             "type": "notification",

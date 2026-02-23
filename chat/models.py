@@ -1,6 +1,8 @@
 # chat/models.py
 from django.db import models
 from  authorization.models import User
+from django.db import models
+from django.conf import settings
 
 class Chat(models.Model):
     participants = models.ManyToManyField(
@@ -85,6 +87,32 @@ class ChatRequest(models.Model):
         return f"{self.sender} → {self.receiver} ({self.status})"
 
 
+
+# models.py
+class Notification(models.Model):
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_notifications"
+    )
+
+    receiver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="received_notifications"
+    )
+
+    message = models.TextField()
+
+    is_read = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]  # newest first
+
+    def __str__(self):
+        return f"{self.sender} → {self.receiver}"
 
 
 
