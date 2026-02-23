@@ -13,6 +13,9 @@ from .serializers import ChatRequestSerializer
 from django.db.models import Q
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from .utils import create_and_send_notification
+from .models import Notification
+from .serializers import NotificationSerializer
 
 
 @api_view(["POST"])
@@ -32,15 +35,12 @@ def send_chat_request(request, user_id):
     if not created:
         return Response({"error": "Request already exists"}, status=400)
     
-    channel_layer = get_channel_layer()
-    async_to_sync(channel_layer.group_send)(
-        f"notify_{receiver.id}",
-        {
-            "type": "send_notification",
-            "message": f"{request.user.name} has sent you a chat request.",
-            "sender_id": request.user.id,
-        }
+    create_and_send_notification(
+    sender=request.user,
+    receiver=receiver,
+    message=f"{request.user.name} has sent you a chat request."
     )
+    
     return Response({"message": "Chat request sent"})
 
 
@@ -93,15 +93,12 @@ def reject_request(request, request_id):
     )
     chat_request.status = ChatRequest.REJECTED
     chat_request.save()
-    channel_layer = get_channel_layer()
-    async_to_sync(channel_layer.group_send)(
-        f"notify_{chat_request.sender.id}",
-        {
-            "type": "send_notification",
-            "message": f"{request.user.name} has rejected your chat request.",
-            "sender_id": request.user.id,
-        }
-    )
+
+    create_and_send_notification(
+    sender=request.user,
+    receiver=chat_request.sender,
+    message=f"{request.user.name} has rejected your chat request."
+)
     return Response({"message": "Request rejected"})
 
 
@@ -208,21 +205,21 @@ def accept_request(request, request_id):
         )
         chat.participants.add(chat_request.sender, chat_request.receiver)
     
-    channel_layer =get_channel_layer()
-    async_to_sync(channel_layer.group_send)(
-        f"notify_{chat_request.sender.id}",
-        {
-            "type": "send_notification",
-            "message": f"{request.user.name} has accepted your chat request.",
-            "sender_id": request.user.id,
-        }
-    )
+    create_and_send_notification(
+    sender=request.user,
+    receiver=chat_request.sender,
+    message=f"{request.user.name} has accepted your chat request."
+)
     return Response({
         "message": "Request accepted",
         "chat_id": chat.id
     }, status=status.HTTP_200_OK)
 
 
-
-
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_user_notifications(request):
+    notifications = Notification.objects.filter(receiver=request.user).order_by("-created_at")
+    serializer = NotificationSerializer(notifications, many=True)
+    return Response(serializer.data)
 
