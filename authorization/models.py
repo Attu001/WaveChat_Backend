@@ -27,6 +27,9 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     name = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
+    bio = models.TextField(blank=True, default="")
+    phone = models.CharField(max_length=20, blank=True, default="")
+    profile_pic = models.URLField(max_length=500, blank=True, default="")
     is_verified = models.BooleanField(default=False)
     token = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)

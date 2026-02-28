@@ -6,7 +6,7 @@ from authorization.models import User
 class UserSimpleSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "name", "email"]
+        fields = ["id", "name", "email", "profile_pic"]
 
 
 class ChatRequestSerializer(serializers.ModelSerializer):

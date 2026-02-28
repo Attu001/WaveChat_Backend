@@ -76,6 +76,7 @@ def accepted_friends(request):
             "id": other_user.id,
             "name": other_user.name,
             "email": other_user.email,
+            "profile_pic": other_user.profile_pic,
         })
 
     return Response(friends)
@@ -110,7 +111,7 @@ def users_with_status(request):
     current_user = request.user
 
     # all other users
-    users = User.objects.exclude(id=current_user.id).values("id", "name", "email")
+    users = User.objects.exclude(id=current_user.id).values("id", "name", "email", "profile_pic")
 
    # accepted chats (friends)
     accepted_user_ids = set()
