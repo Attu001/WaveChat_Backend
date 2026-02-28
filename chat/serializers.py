@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ChatRequest, Chat, Notification
+from .models import ChatRequest, Chat, Notification, Post
 from authorization.models import User
 
 
@@ -48,3 +48,30 @@ class NotificationSerializer(serializers.ModelSerializer):
             "is_read",
             "created_at",
         ]
+
+
+class PostSerializer(serializers.ModelSerializer):
+    author = UserSimpleSerializer(read_only=True)
+    like_count = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Post
+        fields = [
+            "id",
+            "author",
+            "content",
+            "image_url",
+            "like_count",
+            "is_liked",
+            "created_at",
+        ]
+
+    def get_like_count(self, obj):
+        return obj.likes.count()
+
+    def get_is_liked(self, obj):
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            return obj.likes.filter(id=request.user.id).exists()
+        return False

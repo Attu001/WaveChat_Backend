@@ -10,4 +10,12 @@ urlpatterns = [
     path("requests/accept/<int:request_id>/", views.accept_request, name="accept-chat-request"),
     path("notifications/", views.get_user_notifications, name="user-notifications"),
 
+    # ===== Posts =====
+    path("posts/", views.list_posts, name="list-posts"),
+    path("posts/create/", views.create_post, name="create-post"),
+    path("posts/<int:post_id>/like/", views.toggle_like, name="toggle-like"),
+    path("posts/<int:post_id>/delete/", views.delete_post, name="delete-post"),
+
+    # ===== Explore =====
+    path("explore/", views.explore_feed, name="explore-feed"),
 ]

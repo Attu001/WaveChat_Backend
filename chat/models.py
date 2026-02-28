@@ -115,4 +115,23 @@ class Notification(models.Model):
         return f"{self.sender} → {self.receiver}"
 
 
+class Post(models.Model):
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="posts"
+    )
+    content = models.TextField()
+    image_url = models.URLField(max_length=500, blank=True, default="")
+    likes = models.ManyToManyField(
+        User,
+        related_name="liked_posts",
+        blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Post by {self.author.name} at {self.created_at}"
