@@ -8,7 +8,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 import secrets
 import threading
-from .serializer import ProfileSerializer
+from .serializer import ProfileSerializer, ProfileUpdateSerializer
 from threading import Thread
 from rest_framework import status
 from django.conf import settings
@@ -139,11 +139,23 @@ def get_profile(request):
 @permission_classes([IsAuthenticated])
 def get_user_profile(request,user_id):
     try:
-        user =User.objects.get(id-user_id)
+        user =User.objects.get(id=user_id)
         serializer=ProfileSerializer(user)
         return Response(serializer.data)
     except User.DoesNotExist:
         return Response({"error":"User not Found"},status=404)
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def update_profile(request):
+    serializer = ProfileUpdateSerializer(request.user, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        profile_serializer = ProfileSerializer(request.user)
+        return Response(profile_serializer.data, status=200)
+    return Response(serializer.errors, status=400)
+
 
     
     
