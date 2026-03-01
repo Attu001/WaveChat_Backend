@@ -113,18 +113,13 @@ def users_with_status(request):
     # all other users
     users = User.objects.exclude(id=current_user.id).values("id", "name", "email", "profile_pic")
 
-   # accepted chats (friends)
-    accepted_user_ids = set()
-
-    private_chats = Chat.objects.filter(
-                is_group=False,
-                participants=current_user
-            ).prefetch_related("participants")
-
-    for chat in private_chats:
-        other_user = chat.participants.exclude(id=current_user.id).first()
-        if other_user:
-                accepted_user_ids.add(other_user.id)
+   # accepted chats (friends) — single query, then remove self in Python
+    accepted_user_ids = set(
+        Chat.objects.filter(
+            is_group=False,
+            participants=current_user
+        ).values_list("participants__id", flat=True)
+    ) - {current_user.id}
 
 
     # sent pending requests
