@@ -65,6 +65,7 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
                 "type": "send_notification",
                 "message": text,
                 "sender_id": sender.id,
+                "is_chat_message": True
             }
         )
 
@@ -94,11 +95,19 @@ class NotificationConsumer(AsyncWebsocketConsumer):
     
 
     async def send_notification(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "notification",
-            "message": event["message"],
-            "sender_id": event["sender_id"]
-        }))
+        payload = {
+            "type": "notification"
+        }
+        if event.get("is_notification"):
+            payload["is_notification"] = True
+            payload["notification"] = event.get("notification_data")
+            payload["message"] = event.get("message")
+        elif event.get("is_chat_message"):
+            payload["is_chat_message"] = True
+            payload["message"] = event.get("message")
+            payload["sender_id"] = event.get("sender_id")
+
+        await self.send(text_data=json.dumps(payload))
 
 
 @database_sync_to_async

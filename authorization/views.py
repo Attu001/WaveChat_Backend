@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from authorization.models import User
 from django.core.mail import send_mail
-from authorization.utils import generate_token_verification
+from authorization.utils import generate_token_verification, apply_privacy_filter
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 import secrets
@@ -119,7 +119,12 @@ def verify_email(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_all_users(request):
-    users = User.objects.exclude(id=request.user.id).values(
+    users = User.objects.exclude(id=request.user.id)
+    
+    # Apply centralized privacy filter
+    users = apply_privacy_filter(request.user, users)
+    
+    users = users.values(
         "id",
         "name",
         "email"
@@ -137,13 +142,18 @@ def get_profile(request):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def get_user_profile(request,user_id):
+def get_user_profile(request, user_id):
     try:
-        user =User.objects.get(id=user_id)
-        serializer=ProfileSerializer(user)
+        user = User.objects.get(id=user_id)
+        
+        # Privacy check before returning profile
+        if not apply_privacy_filter(request.user, User.objects.filter(id=user.id)).exists():
+            return Response({"error": "User not Found"}, status=404)
+
+        serializer = ProfileSerializer(user)
         return Response(serializer.data)
     except User.DoesNotExist:
-        return Response({"error":"User not Found"},status=404)
+        return Response({"error": "User not Found"}, status=404)
 
 
 @api_view(["PATCH"])

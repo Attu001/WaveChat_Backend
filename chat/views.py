@@ -1,14 +1,14 @@
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from authorization.models import User
-from authorization.utils import generate_token_verification
+from authorization.utils import generate_token_verification, get_or_create_private_chat, apply_privacy_filter
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from django.conf import settings
 import os
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from .models import ChatRequest,Chat
+from .models import ChatRequest, Chat, Message
 from .serializers import ChatRequestSerializer
 from django.db.models import Q
 from channels.layers import get_channel_layer
@@ -21,27 +21,63 @@ from .serializers import NotificationSerializer
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def send_chat_request(request, user_id):
+    sender = request.user
     receiver = get_object_or_404(User, id=user_id)
 
-    if receiver == request.user:
+    if receiver == sender:
         return Response({"error": "Cannot send request to yourself"}, status=400)
 
-    chat_request, created = ChatRequest.objects.get_or_create(
-        sender=request.user,
-        receiver=receiver,
-    )
+    # 1. CHECK IF THEY ALREADY SENT US A REQUEST
+    incoming_request = ChatRequest.objects.filter(
+        sender=receiver,
+        receiver=sender
+    ).first()
 
+    if incoming_request:
+        if incoming_request.status == ChatRequest.PENDING:
+            # Tell user to accept the incoming one
+            return Response({
+                "error": "You already have a pending request from this user. Please accept it.",
+                "status": "PENDING_RECEIVED",
+                "request_id": incoming_request.id
+            }, status=400)
+        
+        if incoming_request.status == ChatRequest.ACCEPTED:
+            return Response({"error": "You are already friends", "status": "ACCEPTED"}, status=400)
 
-    if not created:
-        return Response({"error": "Request already exists"}, status=400)
-    
+    # 2. CHECK OUR EXISTING REQUEST TO THEM
+    outgoing_request = ChatRequest.objects.filter(
+        sender=sender,
+        receiver=receiver
+    ).first()
+
+    if outgoing_request:
+        if outgoing_request.status == ChatRequest.PENDING:
+            return Response({"error": "Request already exists and is pending", "status": "PENDING_SENT"}, status=400)
+        
+        if outgoing_request.status == ChatRequest.ACCEPTED:
+            return Response({"error": "You are already friends", "status": "ACCEPTED"}, status=400)
+            
+        # If REJECTED, reset to PENDING and notify
+        if outgoing_request.status == ChatRequest.REJECTED:
+            outgoing_request.status = ChatRequest.PENDING
+            outgoing_request.save()
+            create_and_send_notification(
+                sender=sender,
+                receiver=receiver,
+                message=f"{sender.name} sent you a chat request."
+            )
+            return Response({"message": "Chat request resent", "status": "PENDING_SENT"})
+
+    # 3. CREATE NEW REQUEST
+    ChatRequest.objects.create(sender=sender, receiver=receiver)
     create_and_send_notification(
-    sender=request.user,
-    receiver=receiver,
-    message=f"{request.user.name} has sent you a chat request."
+        sender=sender,
+        receiver=receiver,
+        message=f"{sender.name} has sent you a chat request."
     )
     
-    return Response({"message": "Chat request sent"})
+    return Response({"message": "Chat request sent", "status": "PENDING_SENT"})
 
 
 @api_view(["GET"])
@@ -50,7 +86,11 @@ def pending_requests(request):
     requests = ChatRequest.objects.filter(
         receiver=request.user,
         status=ChatRequest.PENDING
-    )
+    ).select_related("sender")
+    
+    # Privacy filter: Hide private users from public users, and vice versa
+    requests = apply_privacy_filter(request.user, requests, email_field='sender__email')
+    
     serializer = ChatRequestSerializer(requests, many=True)
     return Response(serializer.data)
 
@@ -70,6 +110,11 @@ def accepted_friends(request):
 
     for chat in chats:
         other_user = chat.participants.exclude(id=user.id).first()
+        if not other_user: continue
+
+        # Privacy Check
+        if not apply_privacy_filter(user, User.objects.filter(id=other_user.id)).exists():
+            continue
 
         friends.append({
             "chat_id": chat.id,
@@ -108,58 +153,74 @@ def reject_request(request, request_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def users_with_status(request):
+    """
+    Returns a list of all users with their relationship status relative to the current user.
+    Statuses: NONE, PENDING_SENT, PENDING_RECEIVED, ACCEPTED, REJECTED
+    """
     current_user = request.user
 
-    # all other users
-    users = User.objects.exclude(id=current_user.id).values("id", "name", "email", "profile_pic")
+    # 1. Fetch all visible users based on privacy
+    all_users = User.objects.exclude(id=current_user.id)
+    filtered_users = apply_privacy_filter(current_user, all_users)
+    user_list = list(filtered_users.values("id", "name", "email", "profile_pic"))
 
-   # accepted chats (friends) — single query, then remove self in Python
-    accepted_user_ids = set(
-        Chat.objects.filter(
-            is_group=False,
-            participants=current_user
-        ).values_list("participants__id", flat=True)
-    ) - {current_user.id}
-
-
-    # sent pending requests
-    sent_requests = set(
-        ChatRequest.objects.filter(
-            sender=current_user,
-            status=ChatRequest.PENDING
-        ).values_list("receiver_id", flat=True)
+    # 2. Get all relevant chat requests involving current user
+    # We fetch PENDING, REJECTED, and ACCEPTED to be comprehensive
+    requests_q = ChatRequest.objects.filter(
+        Q(sender=current_user) | Q(receiver=current_user)
     )
+    
+    # 3. Get all private chats to confirm friendship status
+    accepted_chats = Chat.objects.filter(
+        is_group=False,
+        participants=current_user
+    ).prefetch_related("participants")
+    
+    friend_ids = set()
+    for c in accepted_chats:
+        other = c.participants.exclude(id=current_user.id).first()
+        if other:
+            friend_ids.add(other.id)
 
-    # received pending requests
-    received_requests = {
-        r.sender_id: r.id
-        for r in ChatRequest.objects.filter(
-            receiver=current_user,
-            status=ChatRequest.PENDING
-        )
-    }
+    # 4. Map requests to dictionaries for O(1) lookup
+    sent_requests = {}      # receiver_id -> status
+    received_requests = {}  # sender_id -> (status, request_id)
 
-    data = []
-
-    for user in users:
-        uid = user["id"]
-
-        if uid in accepted_user_ids:
-            status_value = "ACCEPTED"
-            request_id = None
-
-        elif uid in sent_requests:
-            status_value = "PENDING_SENT"
-            request_id = None
-
-        elif uid in received_requests:
-            status_value = "PENDING_RECEIVED"
-            request_id = received_requests[uid]
-
+    for req in requests_q:
+        if req.sender_id == current_user.id:
+            sent_requests[req.receiver_id] = req.status
         else:
-            status_value = "NONE"
-            request_id = None
+            received_requests[req.sender_id] = (req.status, req.id)
 
+    # 5. Build final data list
+    data = []
+    for user in user_list:
+        uid = user["id"]
+        status_value = "NONE"
+        request_id = None
+
+        # Logic Priority: 
+        # 1. Are they friends? (ACCEPTED)
+        # 2. Did they send us a request? (PENDING_RECEIVED)
+        # 3. Did we send them a request? (PENDING_SENT)
+        # 4. Was a request rejected? (REJECTED_SENT / REJECTED_RECEIVED -> mapped to NONE for resending)
+
+        if uid in friend_ids:
+            status_value = "ACCEPTED"
+        elif uid in received_requests:
+            req_status, req_id = received_requests[uid]
+            if req_status == ChatRequest.PENDING:
+                status_value = "PENDING_RECEIVED"
+                request_id = req_id
+            elif req_status == ChatRequest.REJECTED:
+                status_value = "NONE" # Allow them to send a fresh request if previously rejected
+        elif uid in sent_requests:
+            req_status = sent_requests[uid]
+            if req_status == ChatRequest.PENDING:
+                status_value = "PENDING_SENT"
+            elif req_status == ChatRequest.REJECTED:
+                status_value = "NONE" # Allow them to retry if we were rejected
+        
         data.append({
             **user,
             "status": status_value,
@@ -220,6 +281,38 @@ def get_user_notifications(request):
     return Response(serializer.data)
 
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def chat_history(request, other_user_id):
+    other_user = get_object_or_404(User, id=other_user_id)
+
+    # Find existing private chat between the two users
+    chat = (
+        Chat.objects
+        .filter(is_group=False, participants=request.user)
+        .filter(participants=other_user)
+        .first()
+    )
+
+    if not chat:
+        return Response([])  # No chat exists yet
+
+    messages = chat.messages.order_by("created_at").values(
+        "id", "text", "sender_id", "created_at"
+    )
+
+    data = [
+        {
+            "message": msg["text"],
+            "sender": msg["sender_id"],
+            "timestamp": msg["created_at"].isoformat(),
+        }
+        for msg in messages
+    ]
+
+    return Response(data)
+
+
 # ===== Posts =====
 
 from .models import Post
@@ -230,6 +323,10 @@ from .serializers import PostSerializer
 @permission_classes([IsAuthenticated])
 def list_posts(request):
     posts = Post.objects.all().select_related("author").prefetch_related("likes")
+    
+    # Apply privacy filter to posts based on author's email
+    posts = apply_privacy_filter(request.user, posts, email_field='author__email')
+    
     serializer = PostSerializer(posts, many=True, context={"request": request})
     return Response(serializer.data)
 

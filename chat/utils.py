@@ -2,6 +2,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.utils import timezone
 from .models import Notification
+from .serializers import NotificationSerializer
 
 
 def create_and_send_notification(sender, receiver, message):
@@ -18,6 +19,9 @@ def create_and_send_notification(sender, receiver, message):
         is_read=False
     )
 
+    # ✅ Serialize notification for frontend
+    serializer = NotificationSerializer(notification)
+
     # ✅ Send realtime websocket notification
     channel_layer = get_channel_layer()
 
@@ -25,9 +29,9 @@ def create_and_send_notification(sender, receiver, message):
         f"notify_{receiver.id}",
         {
             "type": "send_notification",  # must match consumer method
+            "notification_data": serializer.data,
             "message": message,
-            "sender_id": sender.id,
-            "created_at": notification.created_at.isoformat(),
+            "is_notification": True
         }
     )
 
