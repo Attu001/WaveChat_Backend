@@ -7,14 +7,14 @@ from authorization.utils import generate_token_verification, apply_privacy_filte
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 import secrets
-import threading
 from .serializer import ProfileSerializer, ProfileUpdateSerializer
-from threading import Thread
 from rest_framework import status
 from django.conf import settings
 import os
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import JSONParser
+from django.views.decorators.csrf import csrf_exempt
 
 
 
@@ -25,6 +25,7 @@ from rest_framework.permissions import IsAuthenticated
 
 
 @api_view(["POST"])
+@csrf_exempt
 def register(request):
     name = request.data.get("name")
     email = request.data.get("email")
@@ -65,41 +66,48 @@ def register(request):
         )
 
     except Exception as e:
-        print("Registration Error:", e)
-        return Response({"error": "Registration failed"}, status=500)
+        return Response({"error": "Registration failed", "details": str(e)}, status=500)
 
     
 
 
 @api_view(["POST"])
+@csrf_exempt
 def login_user(request):
-    email = request.data.get("email")
-    password = request.data.get("password")
-    print(email, password)
+    try:
+        # Debug logging
+        print(f"Request data: {request.data}")
+        
+        email = request.data.get("email")
+        password = request.data.get("password")
 
-    if not email or not password:
-        return Response({"error": "Email and password required"}, status=400)
+        if not email or not password:
+            return Response({"error": "Email and password required", "received_data": request.data}, status=400)
 
-    user = authenticate(request, username=email, password=password)
+        user = authenticate(request, username=email, password=password)
 
-    if user is None:
-        print(user)
-        return Response({"error": "Invalid email or password"}, status=400)
-    
-    # if not user.is_verified:
-    #     return Response({"error":"Please verify Your email first!"},status=403)
+        if user is None:
+            return Response({"error": "Invalid email or password"}, status=400)
+        
+        # if not user.is_verified:
+        #     return Response({"error":"Please verify Your email first!"},status=403)
 
-    refresh = RefreshToken.for_user(user)
+        refresh = RefreshToken.for_user(user)
 
-    return Response(
-        {
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "user_id": user.id,
-            "name": user.name,
-            "email": user.email,
-        }
-    )
+        return Response(
+            {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+                "user_id": user.id,
+                "name": user.name,
+                "email": user.email,
+            }
+        )
+    except Exception as e:
+        print(f"ERROR in login_user: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Login failed: {str(e)}"}, status=500)
 
 
 @api_view(["GET"])

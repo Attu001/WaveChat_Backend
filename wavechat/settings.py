@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+from decouple import config, Csv
+import dj_database_url
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -21,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-#jd2p$f&a806z#gg1d@)5mb!uas^3$84@5!@6k7w9r&-k(r^4a"
+SECRET_KEY = config("SECRET_KEY", default="django-insecure-#jd2p$f&a806z#gg1d@)5mb!uas^3$84@5!@6k7w9r&-k(r^4a")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
@@ -66,7 +69,12 @@ MIDDLEWARE = [
 ]
 
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = config(
+    "CORS_ALLOWED_ORIGINS",
+    default="http://localhost:5173,http://localhost:3000,https://wavechat-snowy.vercel.app",
+    cast=Csv()
+)
 CORS_ALLOW_HEADERS = ["*"]
 AUTH_USER_MODEL = "authorization.User"
 
@@ -107,30 +115,6 @@ CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.postgresql",
-#         "NAME": "wavechat_db",
-#         "USER": "postgres",
-#         "PASSWORD": "Atish@9644",
-#         "HOST": "localhost",
-#         "PORT": "5432",
-#     }
-# }
-
-
-# DATABASES = {
-#     "default": dj_database_url.config(
-#         default="postgresql://wavechat_db_user:eM0gDyqFnwMHwdntocmLdxRszcqPeuIV@dpg-d50ftq75r7bs739djglg-a.oregon-postgres.render.com/wavechat_db",
-#         conn_max_age=600,
-#     )
-# }
-
-import os
-
-from decouple import config, Csv
-import dj_database_url
-
 DATABASES = {
     "default": dj_database_url.config(
         default=config("DATABASE_URL"),
@@ -143,16 +127,13 @@ DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
 
 
 
-
-
-
 # email settings
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = "atishchavan066@gmail.com"
-EMAIL_HOST_PASSWORD = "kitm pvvr bvrn kdsj"  # NOT your Gmail password
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="atishchavan066@gmail.com")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 

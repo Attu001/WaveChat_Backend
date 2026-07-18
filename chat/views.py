@@ -8,14 +8,13 @@ from django.conf import settings
 import os
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from .models import ChatRequest, Chat, Message
-from .serializers import ChatRequestSerializer
+from django.db import transaction
+from .models import ChatRequest, Chat, Message, Notification, Post
+from .serializers import ChatRequestSerializer, NotificationSerializer, PostSerializer
 from django.db.models import Q
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from .utils import create_and_send_notification
-from .models import Notification
-from .serializers import NotificationSerializer
 
 
 @api_view(["POST"])
@@ -159,10 +158,17 @@ def users_with_status(request):
     """
     current_user = request.user
 
-    # 1. Fetch all visible users based on privacy
+    # 1. Fetch all users except current user (no privacy filter for user listing)
     all_users = User.objects.exclude(id=current_user.id)
-    filtered_users = apply_privacy_filter(current_user, all_users)
-    user_list = list(filtered_users.values("id", "name", "email", "profile_pic"))
+    user_list = list(all_users.values("id", "name", "email", "profile_pic"))
+    
+    # Debug logging
+    print(f"=== USERS WITH STATUS DEBUG ===")
+    print(f"Current user: {current_user.email} (ID: {current_user.id})")
+    print(f"Total users in DB: {User.objects.count()}")
+    print(f"Users after exclude self: {len(user_list)}")
+    print(f"User list: {user_list}")
+    print(f"===============================")
 
     # 2. Get all relevant chat requests involving current user
     # We fetch PENDING, REJECTED, and ACCEPTED to be comprehensive
@@ -233,44 +239,74 @@ def users_with_status(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def accept_request(request, request_id):
-    # get only PENDING request sent to current user
-    chat_request = get_object_or_404(
-        ChatRequest,
-        id=request_id,
-        receiver=request.user,
-        status=ChatRequest.PENDING
-    )
-
-    # mark as accepted
-    chat_request.status = ChatRequest.ACCEPTED
-    chat_request.save()
-
-    # check if private chat already exists between users
-    existing_chat = Chat.objects.filter(
-        is_group=False,
-        participants=chat_request.sender
-    ).filter(
-        participants=chat_request.receiver
-    ).first()
-
-    # create chat only if not exists
-    if existing_chat:
-        chat = existing_chat
-    else:
-        chat = Chat.objects.create(
-            is_group=False   # optional if you added OneToOneField
+    try:
+        # get only PENDING request sent to current user
+        chat_request = get_object_or_404(
+            ChatRequest,
+            id=request_id,
+            receiver=request.user,
+            status=ChatRequest.PENDING
         )
-        chat.participants.add(chat_request.sender, chat_request.receiver)
-    
-    create_and_send_notification(
-    sender=request.user,
-    receiver=chat_request.sender,
-    message=f"{request.user.name} has accepted your chat request."
-)
-    return Response({
-        "message": "Request accepted",
-        "chat_id": chat.id
-    }, status=status.HTTP_200_OK)
+
+        print(f"=== ACCEPT REQUEST DEBUG ===")
+        print(f"Request ID: {request_id}")
+        print(f"Accepter: {request.user.email} (ID: {request.user.id})")
+        print(f"Sender: {chat_request.sender.email} (ID: {chat_request.sender.id})")
+
+        # Use transaction to ensure all steps succeed together
+        with transaction.atomic():
+            # mark as accepted
+            chat_request.status = ChatRequest.ACCEPTED
+            chat_request.save()
+
+            # check if private chat already exists between users
+            existing_chat = Chat.objects.filter(
+                is_group=False,
+                participants=chat_request.sender
+            ).filter(
+                participants=chat_request.receiver
+            ).first()
+
+            # create chat only if not exists
+            if existing_chat:
+                chat = existing_chat
+                print(f"Using existing chat: {chat.id}")
+            else:
+                chat = Chat.objects.create(is_group=False)
+                chat.participants.add(chat_request.sender, chat_request.receiver)
+                print(f"Created new chat: {chat.id}")
+
+        # Send notifications to both users
+        create_and_send_notification(
+            sender=request.user,
+            receiver=chat_request.sender,
+            message=f"{request.user.name} has accepted your chat request."
+        )
+        
+        # Also send confirmation to the user who accepted
+        create_and_send_notification(
+            sender=request.user,
+            receiver=request.user,
+            message=f"You accepted {chat_request.sender.name}'s chat request."
+        )
+
+        print(f"=== ACCEPT REQUEST SUCCESS ===")
+        
+        return Response({
+            "message": "Request accepted",
+            "chat_id": chat.id,
+            "other_user": {
+                "id": chat_request.sender.id,
+                "name": chat_request.sender.name,
+                "email": chat_request.sender.email
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        print(f"ERROR in accept_request: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to accept request: {str(e)}"}, status=500)
 
 
 @api_view(["GET"])
@@ -279,6 +315,33 @@ def get_user_notifications(request):
     notifications = Notification.objects.filter(receiver=request.user).order_by("-created_at")
     serializer = NotificationSerializer(notifications, many=True)
     return Response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def unread_notification_count(request):
+    count = Notification.objects.filter(receiver=request.user, is_read=False).count()
+    return Response({"unread_count": count})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def mark_notification_read(request, notification_id):
+    notification = get_object_or_404(
+        Notification,
+        id=notification_id,
+        receiver=request.user
+    )
+    notification.is_read = True
+    notification.save()
+    return Response({"message": "Notification marked as read"})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def mark_all_notifications_read(request):
+    Notification.objects.filter(receiver=request.user, is_read=False).update(is_read=True)
+    return Response({"message": "All notifications marked as read"})
 
 
 @api_view(["GET"])
@@ -314,9 +377,6 @@ def chat_history(request, other_user_id):
 
 
 # ===== Posts =====
-
-from .models import Post
-from .serializers import PostSerializer
 
 
 @api_view(["GET"])
@@ -384,8 +444,9 @@ def delete_post(request, post_id):
 
 import requests as http_requests
 import random
+from django.conf import settings
 
-PEXELS_API_KEY = "FjhCPTfPzgGZasx3hSslBvVqOJZ3GubjVTQ3LioeNRfQxIREaeHzGkYe"
+PEXELS_API_KEY = getattr(settings, "PEXELS_API_KEY", "")
 
 FAKE_AUTHORS = [
     {"name": "Sophia Chen", "email": "sophia@wave.io"},
