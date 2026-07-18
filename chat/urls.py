@@ -9,6 +9,9 @@ urlpatterns = [
     path("users-with-status/", views.users_with_status, name="users-with-status"),
     path("requests/accept/<int:request_id>/", views.accept_request, name="accept-chat-request"),
     path("notifications/", views.get_user_notifications, name="user-notifications"),
+    path("notifications/unread-count/", views.unread_notification_count, name="unread-notification-count"),
+    path("notifications/mark-read/<int:notification_id>/", views.mark_notification_read, name="mark-notification-read"),
+    path("notifications/mark-all-read/", views.mark_all_notifications_read, name="mark-all-notifications-read"),
     path("history/<int:other_user_id>/", views.chat_history, name="chat-history"),
 
     # ===== Posts =====

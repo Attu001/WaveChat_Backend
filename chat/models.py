@@ -1,7 +1,6 @@
 # chat/models.py
 from django.db import models
-from  authorization.models import User
-from django.db import models
+from authorization.models import User
 from django.conf import settings
 
 class Chat(models.Model):
